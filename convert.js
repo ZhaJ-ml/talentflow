@@ -42,28 +42,30 @@ export default async function handler(req, res) {
 公司：字节seed/字节Seed→字节跳动 Seed，千问/Qwen→通义千问（阿里），月之/Moonshot→月之暗面，蚂蚁Ling→蚂蚁集团，Google Brain/谷歌大脑→Google Brain，微软/MSRA→微软研究院，幻方/DeepSeek→幻方科技，Facebook AI/Meta AI→Meta AI`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // ── Kimi API（OpenAI 兼容格式）──
+    const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${process.env.KIMI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: `请处理以下原始表格数据，只输出CSV，不要有其他内容：\n\n${rawText}` }]
+        model: 'moonshot-v1-32k',
+        temperature: 0.1,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: `请处理以下原始表格数据，只输出CSV，不要有其他内容：\n\n${rawText}` }
+        ]
       })
     });
 
     if (!response.ok) {
       const err = await response.json();
-      return res.status(500).json({ error: err.error?.message || 'Anthropic API error' });
+      return res.status(500).json({ error: err.error?.message || 'Kimi API error' });
     }
 
     const data = await response.json();
-    let csv = data.content.map(b => b.text || '').join('');
+    let csv = data.choices?.[0]?.message?.content || '';
     // strip markdown fences if model wraps it anyway
     csv = csv.replace(/^```(?:csv)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 
