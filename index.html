@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>人才脉络图谱</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+:root{
+  --bg:#06060e;--surf:#0d0d18;--surf2:#14141f;--bdr:#1f1f30;
+  --tx:#dde0f5;--mu:#4a4a6a;--acc:#7b82ff;
+  --cu:#a78bfa;--cm:#818cf8;--cd:#4f8ef7;--ca:#e5606a;--ci:#3bb8c4;--cpj:#f0a500;--cj:#7ec87a;
+  --tab-h:38px;--sidebar-w:260px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--tx);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--bdr);background:var(--surf);flex-shrink:0;gap:12px}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.5px;white-space:nowrap}
+.logo em{color:var(--acc);font-style:normal}
+.hstats{display:flex;gap:16px;flex-shrink:0}
+.hs{text-align:center}
+.hsv{font-family:'Syne',sans-serif;font-weight:700;font-size:17px;line-height:1}
+.hsl{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--mu);margin-top:2px}
+.hbtns{display:flex;gap:7px;flex-shrink:0}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:6px 13px;border-radius:5px;border:1px solid var(--bdr);background:transparent;color:var(--mu);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--acc);color:var(--tx)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#06060e;font-weight:600}
+.btn.p:hover{opacity:.85}
+.btn.ai{background:linear-gradient(135deg,#7b82ff,#a78bfa);border-color:transparent;color:#fff;font-weight:500}
+.btn.ai:hover{opacity:.85}
+.btn.sm{padding:4px 9px;font-size:9.5px}
+.btn.icon{padding:5px 9px;font-size:13px}
+.btn.active-btn{border-color:var(--acc);color:var(--acc);background:rgba(123,130,255,.08)}
+
+/* TABS */
+.tabbar{display:flex;align-items:stretch;background:var(--surf);border-bottom:1px solid var(--bdr);flex-shrink:0;height:var(--tab-h);overflow-x:auto;overflow-y:hidden}
+.tabbar::-webkit-scrollbar{height:3px}
+.tabbar::-webkit-scrollbar-thumb{background:var(--bdr)}
+.tab-item{display:flex;align-items:center;gap:6px;padding:0 14px;border-right:1px solid var(--bdr);cursor:pointer;white-space:nowrap;font-size:11px;color:var(--mu);transition:all .15s;position:relative;user-select:none;flex-shrink:0}
+.tab-item:hover{color:var(--tx);background:rgba(123,130,255,.05)}
+.tab-item.active{color:var(--tx);background:rgba(123,130,255,.08)}
+.tab-item.active::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--acc)}
+.tab-dot{width:7px;height:7px;border-radius:2px;background:var(--mu);flex-shrink:0;transition:background .15s}
+.tab-item.active .tab-dot{background:var(--acc)}
+.tab-name{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.tab-cnt{font-size:9px;color:var(--mu);padding:1px 5px;background:var(--surf2);border-radius:3px;flex-shrink:0}
+.tab-close{opacity:0;font-size:11px;color:var(--mu);width:14px;height:14px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;transition:all .12s}
+.tab-item:hover .tab-close{opacity:.5}
+.tab-close:hover{opacity:1!important;background:rgba(229,96,106,.2);color:var(--ca)}
+.tab-add{display:flex;align-items:center;justify-content:center;padding:0 14px;cursor:pointer;color:var(--mu);font-size:16px;flex-shrink:0}
+.tab-add:hover{color:var(--acc)}
+
+/* LEGEND */
+.legbar{display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--bdr);background:var(--surf);flex-shrink:0;height:36px;overflow-x:auto;gap:0}
+.leg{display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;padding:0 12px;height:100%;border-right:1px solid var(--bdr);transition:opacity .15s;white-space:nowrap;font-size:10px}
+.leg:first-child{padding-left:0}
+.leg.off{opacity:.28}
+.ldot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.lcnt{font-size:9.5px;color:var(--mu)}
+.leg-hint{margin-left:auto;font-size:9px;color:var(--mu);padding-left:12px;white-space:nowrap;opacity:.6}
+
+/* MAIN AREA */
+.main-area{display:flex;flex:1;overflow:hidden}
+
+/* LAYER SIDEBAR */
+.layer-sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;transition:width .2s,opacity .2s}
+.layer-sidebar.collapsed{width:0;opacity:0;pointer-events:none}
+.lsb-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.lsb-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px}
+.lsb-sub{font-size:9px;color:var(--mu);margin-top:2px}
+.lsb-body{flex:1;overflow-y:auto;padding:10px 10px 16px}
+.lsb-body::-webkit-scrollbar{width:3px}
+.lsb-body::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.lsb-footer{padding:10px 12px;border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:7px;flex-shrink:0}
+.lsb-add{display:flex;gap:6px}
+.lsb-add input{flex:1;background:var(--surf2);border:1px solid var(--bdr);border-radius:5px;padding:5px 9px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx);outline:none}
+.lsb-add input:focus{border-color:var(--acc)}
+
+/* LAYER BLOCKS */
+.layer-block{border:1px solid var(--bdr);border-radius:7px;margin-bottom:8px;overflow:hidden;background:var(--bg)}
+.layer-block.drag-over{border-color:var(--acc);background:rgba(123,130,255,.04)}
+.layer-block.dragging{opacity:.4}
+.lb-hdr{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--surf2);cursor:grab;user-select:none;border-bottom:1px solid var(--bdr)}
+.lb-hdr:active{cursor:grabbing}
+.lb-drag{color:var(--mu);font-size:11px;flex-shrink:0}
+.lb-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.lb-name-wrap{flex:1;min-width:0}
+.lb-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;outline:none;border-radius:3px;padding:1px 3px;transition:background .1s}
+.lb-name:hover{background:rgba(123,130,255,.1)}
+.lb-name:focus{background:rgba(123,130,255,.15);color:var(--tx)}
+.lb-cnt{font-size:9px;color:var(--mu);flex-shrink:0}
+.lb-vis{cursor:pointer;font-size:12px;flex-shrink:0;opacity:.5;transition:opacity .1s}
+.lb-vis:hover{opacity:1}
+.lb-del{cursor:pointer;font-size:11px;flex-shrink:0;opacity:.3;color:var(--ca);transition:opacity .1s}
+.lb-del:hover{opacity:1}
+
+/* NODE ROWS inside layer */
+.lb-nodes{padding:5px 6px;display:flex;flex-direction:column;gap:3px;min-height:10px}
+.lb-nodes.drag-target-empty{min-height:36px;border:1.5px dashed rgba(123,130,255,.2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9.5px;color:var(--mu)}
+.node-row{display:flex;align-items:center;gap:5px;padding:4px 6px;border-radius:4px;background:var(--surf2);border:1px solid var(--bdr);font-size:10px;cursor:grab;user-select:none;transition:border-color .1s}
+.node-row:active{cursor:grabbing}
+.node-row.dragging{opacity:.35}
+.node-row.drag-over-top{border-top:2px solid var(--acc)}
+.node-row.drag-over-bot{border-bottom:2px solid var(--acc)}
+.node-row.hidden-node{opacity:.35}
+.nr-drag{color:var(--mu);font-size:9px;flex-shrink:0}
+.nr-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.nr-alias{width:0;overflow:hidden;transition:width .15s;background:var(--bg);border:1px solid var(--bdr);border-radius:3px;padding:0;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--tx);outline:none;flex-shrink:0}
+.nr-alias.open{width:80px;padding:2px 5px}
+.nr-alias:focus{border-color:var(--acc)}
+.nr-cnt{font-size:9px;color:var(--mu);flex-shrink:0;width:22px;text-align:right}
+.nr-vis{cursor:pointer;font-size:10px;flex-shrink:0;opacity:.4;transition:opacity .1s}
+.nr-vis:hover{opacity:1}
+.nr-edit{cursor:pointer;font-size:10px;flex-shrink:0;opacity:.3;transition:opacity .1s}
+.nr-edit:hover{opacity:.9}
+
+/* COLOR PICKER */
+.color-swatches{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.color-swatch{width:16px;height:16px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:border-color .1s}
+.color-swatch:hover,.color-swatch.sel{border-color:#fff}
+
+/* MAIN CANVAS */
+.canvas-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.sankey-wrap{flex:1;position:relative;overflow:hidden;background:var(--bg);background-image:radial-gradient(circle at 1px 1px,#111122 1px,transparent 0);background-size:26px 26px}
+#sv{width:100%;height:100%}
+.col-hdr{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;fill:var(--mu)}
+.nd rect{cursor:pointer;transition:filter .15s}
+.nd rect:hover{filter:brightness(1.4)}
+.nd.dim rect{opacity:.12}
+.nd.dim text{opacity:.1}
+.nlb{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:var(--tx);pointer-events:none}
+.nct{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;pointer-events:none;fill:var(--bg)}
+.slink{fill:none;stroke-opacity:.2;cursor:pointer;transition:stroke-opacity .12s}
+.slink:hover{stroke-opacity:.7}
+.slink.dim{stroke-opacity:.03}
+.slink.hi{stroke-opacity:.75}
+
+/* DETAIL PANEL */
+.detail{width:280px;flex-shrink:0;background:var(--surf);border-left:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
+.detail.empty{opacity:.4}
+.dh{padding:14px 14px 10px;border-bottom:1px solid var(--bdr)}
+.dtype{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--mu);margin-bottom:4px}
+.dname{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;line-height:1.2}
+.dsub{font-size:10px;color:var(--mu);margin-top:3px}
+.dbody{flex:1;overflow-y:auto;padding:10px 12px}
+.dbody::-webkit-scrollbar{width:3px}
+.dbody::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+.sec-title{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--mu);margin:12px 0 6px}
+.sec-title:first-child{margin-top:0}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--bdr);font-size:10.5px}
+.srow-l{color:var(--mu)}
+.srow-v{font-family:'Syne',sans-serif;font-weight:700;font-size:11px}
+.pcard{padding:8px 10px;border-radius:5px;background:var(--surf2);border:1px solid var(--bdr);margin-bottom:5px}
+.pcn{font-size:11.5px;font-weight:500;margin-bottom:4px}
+.pcm{font-size:9.5px;color:var(--mu);line-height:1.8}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;margin:1px 2px 1px 0;font-weight:500;vertical-align:middle}
+.unknown-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;background:rgba(136,136,136,.12);color:var(--mu);font-style:italic}
+
+/* MODALS */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(5px)}
+.ov.hidden{display:none}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal.wide{width:820px}
+.modal.narrow{width:400px}
+.mh{padding:16px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.mt{font-family:'Syne',sans-serif;font-size:15px;font-weight:700}
+.mc{background:none;border:none;color:var(--mu);font-size:17px;cursor:pointer}
+.mc:hover{color:var(--tx)}
+.mb{padding:16px 20px;overflow-y:auto;flex:1}
+.mf{padding:11px 20px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.merr{font-size:10px;color:var(--ca)}
+.fhint{background:var(--surf2);border:1px solid var(--bdr);border-radius:7px;padding:12px;margin-bottom:12px;font-size:10.5px;line-height:2;color:var(--mu)}
+.fhint strong{color:var(--tx)}
+.fhint code{background:rgba(123,130,255,.15);color:var(--acc);padding:1px 5px;border-radius:3px}
+.csvta{width:100%;height:200px;background:var(--surf2);border:1px solid var(--bdr);border-radius:7px;padding:10px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--tx);resize:vertical;outline:none;line-height:1.7}
+.csvta:focus{border-color:var(--acc)}
+.name-input{width:100%;background:var(--surf2);border:1px solid var(--bdr);border-radius:6px;padding:8px 11px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--tx);outline:none}
+.name-input:focus{border-color:var(--acc)}
+
+/* AI MODAL */
+.ai-modal .mb{display:flex;flex-direction:column;padding:0}
+.ai-steps{display:flex;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.ai-step{flex:1;padding:9px 12px;font-size:9.5px;text-transform:uppercase;letter-spacing:1.5px;color:var(--mu);text-align:center;border-right:1px solid var(--bdr)}
+.ai-step:last-child{border-right:none}
+.ai-step.active{color:var(--acc)}
+.ai-step.done{color:var(--cj)}
+.ai-step-num{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;display:block;margin-bottom:2px}
+.ai-panel{flex:1;overflow-y:auto;padding:16px 20px}
+.ai-panel.hidden{display:none}
+.ai-prog-bar{height:3px;background:var(--surf2);border-radius:2px;overflow:hidden;margin:8px 0 4px}
+.ai-prog-fill{height:100%;background:linear-gradient(90deg,var(--acc),var(--cu));border-radius:2px;transition:width .4s ease}
+.ai-spinner{display:inline-block;width:10px;height:10px;border:1.5px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-table-wrap{border:1px solid var(--bdr);border-radius:7px;overflow:auto;max-height:220px}
+.result-table{width:100%;border-collapse:collapse;font-size:10px}
+.result-table th{background:var(--surf2);padding:4px 9px;text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:1px;color:var(--mu);border-bottom:1px solid var(--bdr);white-space:nowrap}
+.result-table td{padding:4px 9px;border-bottom:1px solid rgba(31,31,48,.7);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-table tr:last-child td{border-bottom:none}
+.result-table tr:hover td{background:rgba(123,130,255,.04)}
+
+/* EMPTY */
+.empty-prompt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.ep-icon{font-size:36px;opacity:.15;margin-bottom:10px}
+.ep-t{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--mu);margin-bottom:5px}
+.ep-s{font-size:10px;color:var(--mu);opacity:.4}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TALENT<em>FLOW</em></div>
+  <div class="hstats">
+    <div class="hs"><div class="hsv" id="s-p">0</div><div class="hsl">人才</div></div>
+    <div class="hs"><div class="hsv" id="s-us">0</div><div class="hsl">本科</div></div>
+    <div class="hs"><div class="hsv" id="s-ms">0</div><div class="hsl">硕士</div></div>
+    <div class="hs"><div class="hsv" id="s-ds">0</div><div class="hsl">博士</div></div>
+    <div class="hs"><div class="hsv" id="s-a">0</div><div class="hsl">导师</div></div>
+    <div class="hs"><div class="hsv" id="s-i">0</div><div class="hsl">实习</div></div>
+    <div class="hs"><div class="hsv" id="s-pj">0</div><div class="hsl">前任</div></div>
+    <div class="hs"><div class="hsv" id="s-j">0</div><div class="hsl">现任</div></div>
+  </div>
+  <div class="hbtns">
+    <button class="btn icon" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="层配置侧边栏">⚙</button>
+    <button class="btn" onclick="loadSample()">示例</button>
+    <button class="btn ai" onclick="showAIModal()">✦ AI 智能导入</button>
+    <button class="btn p" onclick="showModal()">＋ 手动导入</button>
+  </div>
+</header>
+
+<div class="tabbar" id="tabbar">
+  <div class="tab-add" onclick="addTab()" title="新建 Tab">＋</div>
+</div>
+
+<div class="legbar" id="legbar"></div>
+
+<div class="main-area">
+
+  <!-- LAYER CONFIG SIDEBAR -->
+  <div class="layer-sidebar" id="layer-sidebar">
+    <div class="lsb-hdr">
+      <div>
+        <div class="lsb-title">层 & 节点配置</div>
+        <div class="lsb-sub">拖拽调序 · 点击改名 · 隐藏节点</div>
+      </div>
+    </div>
+    <div class="lsb-body" id="lsb-body"></div>
+    <div class="lsb-footer">
+      <div style="font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:1.5px">新增自定义层</div>
+      <div class="lsb-add">
+        <input id="new-layer-input" placeholder="层名称，如：论文产出" onkeydown="if(event.key==='Enter')addCustomLayer()">
+        <button class="btn sm p" onclick="addCustomLayer()">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-area">
+    <div class="sankey-wrap" id="sw">
+      <div class="empty-prompt" id="ep">
+        <div class="ep-icon">⟶</div>
+        <div class="ep-t">暂无数据</div>
+        <div class="ep-s">点击右上角「AI 智能导入」或「手动导入」</div>
+      </div>
+      <svg id="sv"></svg>
+    </div>
+  </div>
+
+  <div class="detail empty" id="detail">
+    <div class="dh">
+      <div class="dtype" id="d-type">选择节点</div>
+      <div class="dname" id="d-name">点击任意节点</div>
+      <div class="dsub" id="d-sub">查看穿透详情</div>
+    </div>
+    <div class="dbody" id="d-body">
+      <div style="color:var(--mu);font-size:10.5px;margin-top:20px;text-align:center;line-height:2.2;opacity:.6">点击桑基图中<br>任意节点或连接线<br>查看人才详情</div>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL IMPORT MODAL -->
+<div class="ov hidden" id="ov">
+  <div class="modal">
+    <div class="mh"><div class="mt">手动导入数据</div><button class="mc" onclick="hideModal()">✕</button></div>
+    <div class="mb">
+      <div class="fhint">
+        <strong>CSV 格式（第一行固定表头）</strong><br>
+        必填：<code>姓名</code> · 教育：<code>本科学校</code> <code>硕士学校</code> <code>博士学校</code><br>
+        选填：<code>导师</code> <code>实习</code> <code>前任正职</code> <code>正职</code> <code>方向</code> <code>备注</code><br>
+        多个值用 <code>/</code> 分隔 · 导师格式 <code>朱军@清华</code>
+      </div>
+      <textarea class="csvta" id="csv-ta" placeholder="姓名,本科学校,硕士学校,博士学校,导师,实习,前任正职,正职,方向,备注
+张三,清华大学,清华大学,清华大学,朱军@清华,字节跳动,,Seed,大模型,"></textarea>
+    </div>
+    <div class="mf">
+      <div class="merr" id="m-err"></div>
+      <div style="display:flex;gap:7px">
+        <button class="btn" onclick="hideModal()">取消</button>
+        <button class="btn p" onclick="doImport()">生成图谱</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI IMPORT MODAL -->
+<div class="ov hidden" id="ai-ov">
+  <div class="modal wide ai-modal">
+    <div class="mh">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="mt">✦ AI 智能导入</div>
+        <span style="font-size:9px;color:var(--mu);padding:2px 8px;background:rgba(123,130,255,.12);border-radius:10px;border:1px solid var(--bdr)">自动识别 · 归一化 · 一键生图</span>
+      </div>
+      <button class="mc" onclick="hideAIModal()">✕</button>
+    </div>
+    <div class="ai-steps">
+      <div class="ai-step active" id="ai-s1"><span class="ai-step-num">01</span>粘贴原始数据</div>
+      <div class="ai-step" id="ai-s2"><span class="ai-step-num">02</span>AI 分析识别</div>
+      <div class="ai-step" id="ai-s3"><span class="ai-step-num">03</span>确认并导入</div>
+    </div>
+    <div class="ai-panel" id="ai-p1">
+      <div class="fhint" style="margin-bottom:12px">
+        <strong>直接从 Excel / 飞书全选复制粘贴</strong>，格式随意，AI 自动识别<br>
+        <code>本博@浙大</code> · <code>曾在腾讯实习，现加入Qwen</code> · <code>Google scholar citation 370</code>→备注
+      </div>
+      <textarea class="csvta" id="ai-raw-ta" style="height:240px" placeholder="从 Excel / 飞书直接全选复制粘贴…"></textarea>
+      <div style="margin-top:10px;display:flex;justify-content:flex-end">
+        <button class="btn ai" onclick="aiStep2()">AI 开始分析 →</button>
+      </div>
+    </div>
+    <div class="ai-panel hidden" id="ai-p2">
+      <div style="font-size:11px;margin-bottom:8px"><span class="ai-spinner" id="ai-spin"></span><span id="ai-log-t">正在分析数据结构…</span></div>
+      <div class="ai-prog-bar"><div class="ai-prog-fill" id="ai-prog" style="width:0%"></div></div>
+    </div>
+    <div class="ai-panel hidden" id="ai-p3">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:10.5px;color:var(--mu)">已转换 <span id="ai-cnt" style="color:var(--tx);font-weight:600">0</span> 条记录</div>
+        <button class="btn sm" onclick="aiEditCSV()">编辑 CSV</button>
+      </div>
+      <div class="result-table-wrap">
+        <table class="result-table"><thead><tr id="ai-result-thead"></tr></thead><tbody id="ai-result-tbody"></tbody></table>
+      </div>
+      <div id="ai-csv-edit-section" style="display:none;margin-top:8px">
+        <textarea class="csvta" id="ai-csv-edit-ta" style="height:130px"></textarea>
+      </div>
+    </div>
+    <div class="mf">
+      <div class="merr" id="ai-err"></div>
+      <div style="display:flex;gap:7px" id="ai-mf-btns">
+        <button class="btn" onclick="hideAIModal()">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME TAB MODAL -->
+<div class="ov hidden" id="rename-ov">
+  <div class="modal narrow">
+    <div class="mh"><div class="mt">重命名 Tab</div><button class="mc" onclick="hideRename()">✕</button></div>
+    <div class="mb"><input class="name-input" id="rename-input" placeholder="输入名称…" onkeydown="if(event.key==='Enter')doRename()"></div>
+    <div class="mf"><div></div><div style="display:flex;gap:7px"><button class="btn" onclick="hideRename()">取消</button><button class="btn p" onclick="doRename()">确认</button></div></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// SAMPLE DATA
+// ════════════════════════════════════════
+const SAMPLE=`姓名,本科学校,硕士学校,博士学校,导师,实习,前任正职,正职,方向,备注
+姚顺宇,清华大学,清华大学,清华大学,朱军@清华大学,字节跳动/Google Brain,,字节跳动 Seed,大模型,
+杨植麟,清华大学,清华大学,清华大学,朱军@清华大学,Google Brain,,月之暗面,大模型,Moonshot创始人
+陈丹琦,清华大学,,清华大学,朱军@清华大学,Google Brain/Meta AI,,字节跳动 Seed,NLP,
+徐明,北京大学,,清华大学,朱军@清华大学,Google Brain,字节跳动,月之暗面,大模型,
+李明远,北京大学,北京大学,北京大学,刘知远@北京大学,微软研究院/百度,百度,通义千问（阿里）,NLP,
+孙磊,北京大学,北京大学,北京大学,刘知远@北京大学,阿里巴巴,,通义千问（阿里）,NLP,
+张伟,清华大学,清华大学,清华大学,刘知远@北京大学,字节跳动,腾讯,字节跳动,NLP,
+王芳,清华大学,清华大学,清华大学,张拳石@清华大学,幻方科技,,幻方科技,大模型,
+赵雷,上海交通大学,上海交通大学,上海交通大学,张拳石@上海交通大学,字节跳动,,字节跳动,多模态,
+周强,浙江大学,浙江大学,浙江大学,任波@浙江大学,腾讯,,腾讯混元,视觉,
+赵敏,上海交通大学,浙江大学,,任波@浙江大学,腾讯,,腾讯混元,多模态,
+李振宇,清华大学,,清华大学,王建勇@清华大学,字节跳动 Seed/微软研究院,,字节跳动 Seed,多模态,"华罗庚数学建模竞赛一等奖/XAgent 8.5k stars"`;
+
+// ════════════════════════════════════════
+// LAYER DEFINITIONS — default, mutable per tab
+// ════════════════════════════════════════
+const DEFAULT_LAYERS=[
+  {id:'uschool', name:'本科', color:'#a78bfa', field:'uSchool'},
+  {id:'mschool', name:'硕士', color:'#818cf8', field:'mSchool'},
+  {id:'dschool', name:'博士', color:'#4f8ef7', field:'dSchool'},
+  {id:'advisor', name:'导师', color:'#e5606a', field:'advisors'},
+  {id:'intern',  name:'实习', color:'#3bb8c4', field:'interns'},
+  {id:'prevjob', name:'前任正职', color:'#f0a500', field:'prevjobs'},
+  {id:'job',     name:'现任正职', color:'#7ec87a', field:'jobs'},
+];
+
+function cloneLayers(){ return DEFAULT_LAYERS.map(l=>({...l, hidden:false, nodes:{}})); }
+
+// ════════════════════════════════════════
+// PERSIST
+// ════════════════════════════════════════
+const LS_KEY='talentflow_v7';
+function saveState(){
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      tabs: tabs.map(t=>({...t, dimSet:[...t.dimSet]})),
+      activeTabId, nextTabId, sidebarOpen
+    }));
+  } catch(e){}
+}
+function loadState(){
+  try {
+    const s=JSON.parse(localStorage.getItem(LS_KEY)||'null');
+    if(!s) return false;
+    tabs=s.tabs.map(t=>({...t, dimSet:new Set(t.dimSet||[]), layers:t.layers||cloneLayers()}));
+    activeTabId=s.activeTabId; nextTabId=s.nextTabId||(Math.max(...tabs.map(t=>t.id))+1);
+    sidebarOpen=s.sidebarOpen!==false;
+    return true;
+  } catch(e){ return false; }
+}
+
+// ════════════════════════════════════════
+// TAB SYSTEM
+// ════════════════════════════════════════
+let tabs=[{id:1,name:'Mapping 01',people:[],dimSet:new Set(),layers:cloneLayers()}];
+let activeTabId=1, nextTabId=2, renamingTabId=null, sidebarOpen=true;
+
+function getCurTab(){ return tabs.find(t=>t.id===activeTabId)||tabs[0]; }
+
+function renderTabs(){
+  const bar=document.getElementById('tabbar');
+  bar.querySelectorAll('.tab-item').forEach(e=>e.remove());
+  const addBtn=bar.querySelector('.tab-add');
+  tabs.forEach(tab=>{
+    const el=document.createElement('div');
+    el.className='tab-item'+(tab.id===activeTabId?' active':'');
+    const cnt=tab.people.length;
+    el.innerHTML=`<div class="tab-dot"></div><span class="tab-name" title="${tab.name}">${tab.name}</span>${cnt?`<span class="tab-cnt">${cnt}</span>`:''}${tabs.length>1?`<span class="tab-close" onclick="closeTab(event,${tab.id})">✕</span>`:''}`;
+    el.addEventListener('click',()=>switchTab(tab.id));
+    el.addEventListener('dblclick',()=>showRename(tab.id));
+    bar.insertBefore(el,addBtn);
+  });
+}
+
+function switchTab(id){
+  activeTabId=id; renderTabs();
+  const tab=getCurTab();
+  people=tab.people; dimSet=tab.dimSet; layers=tab.layers||cloneLayers();
+  tab.layers=layers;
+  renderLegend(); renderSidebar();
+  if(people.length){ document.getElementById('ep').style.display='none'; updateStats(); draw(); }
+  else { document.getElementById('ep').style.display=''; clearStats(); d3.select('#sv').selectAll('*').remove(); clearDetail(); }
+}
+
+function addTab(){
+  const id=nextTabId++;
+  tabs.push({id,name:`Mapping ${String(id).padStart(2,'0')}`,people:[],dimSet:new Set(),layers:cloneLayers()});
+  saveState(); switchTab(id);
+}
+
+function closeTab(e,id){
+  e.stopPropagation();
+  if(tabs.length<=1) return;
+  if(!confirm('确认删除此 Tab？')) return;
+  tabs=tabs.filter(t=>t.id!==id);
+  if(activeTabId===id) switchTab(tabs[tabs.length-1].id);
+  else { renderTabs(); saveState(); }
+}
+
+function showRename(id){ renamingTabId=id; const t=tabs.find(x=>x.id===id); const inp=document.getElementById('rename-input'); inp.value=t.name; document.getElementById('rename-ov').classList.remove('hidden'); setTimeout(()=>{inp.focus();inp.select();},50); }
+function hideRename(){ document.getElementById('rename-ov').classList.add('hidden'); renamingTabId=null; }
+function doRename(){ if(!renamingTabId) return; const name=document.getElementById('rename-input').value.trim()||`Mapping ${renamingTabId}`; const t=tabs.find(x=>x.id===renamingTabId); if(t){t.name=name;saveState();renderTabs();} hideRename(); }
+
+// ════════════════════════════════════════
+// LAYER STATE — per tab
+// ════════════════════════════════════════
+let people=[], dimSet=new Set(), layers=cloneLayers();
+
+function getLayer(id){ return layers.find(l=>l.id===id); }
+
+function layerColor(id){ const l=getLayer(id); return l?l.color:'#888'; }
+function layerName(id){ const l=getLayer(id); return l?l.name:id; }
+
+// node config per layer: layers[i].nodes = { 'label': { alias, hidden } }
+function getNodeCfg(layerId,label){ const l=getLayer(layerId); return (l&&l.nodes&&l.nodes[label])||{}; }
+function setNodeCfg(layerId,label,patch){ const l=getLayer(layerId); if(!l) return; if(!l.nodes) l.nodes={}; l.nodes[label]={...(l.nodes[label]||{}),...patch}; }
+function nodeDisplayLabel(layerId,label){ const c=getNodeCfg(layerId,label); return c.alias||label; }
+function isNodeHidden(layerId,label){ return !!getNodeCfg(layerId,label).hidden; }
+
+// ════════════════════════════════════════
+// SIDEBAR TOGGLE
+// ════════════════════════════════════════
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  document.getElementById('layer-sidebar').classList.toggle('collapsed',!sidebarOpen);
+  document.getElementById('sidebar-toggle-btn').classList.toggle('active-btn',sidebarOpen);
+  saveState();
+  setTimeout(()=>{ if(people.length) draw(); },220);
+}
+
+// ════════════════════════════════════════
+// SIDEBAR RENDER
+// ════════════════════════════════════════
+let dragSrcLayer=null, dragSrcNode=null;
+
+function renderSidebar(){
+  const body=document.getElementById('lsb-body');
+  body.innerHTML='';
+  layers.forEach((layer,li)=>{
+    // gather nodes from current data
+    const nodeMap={};
+    people.forEach(p=>{
+      const vals=getPersonFieldVals(p,layer.id);
+      vals.forEach(v=>{ if(!nodeMap[v]) nodeMap[v]=0; nodeMap[v]++; });
+    });
+    const nodeKeys=Object.keys(nodeMap).sort((a,b)=>nodeMap[b]-nodeMap[a]);
+
+    const block=document.createElement('div');
+    block.className='layer-block';
+    block.dataset.layerId=layer.id;
+    block.dataset.li=li;
+    block.innerHTML=`
+      <div class="lb-hdr" draggable="true">
+        <span class="lb-drag">⠿</span>
+        <div class="lb-dot" style="background:${layer.color}"></div>
+        <div class="lb-name-wrap">
+          <div class="lb-name" contenteditable="true" spellcheck="false" data-lid="${layer.id}">${layer.name}</div>
+        </div>
+        <span class="lb-cnt">${nodeKeys.length}</span>
+        <span class="lb-vis" title="显示/隐藏层" data-lid="${layer.id}">${layer.hidden?'○':'●'}</span>
+        ${layer.id.startsWith('custom_')?`<span class="lb-del" title="删除层" data-lid="${layer.id}">✕</span>`:''}
+      </div>
+      <div class="lb-nodes ${!nodeKeys.length?'drag-target-empty':''}" id="lbnodes-${layer.id}" data-lid="${layer.id}">
+        ${!nodeKeys.length?'<span>无节点数据</span>':''}
+      </div>
+    `;
+    body.appendChild(block);
+
+    // wire layer header drag (reorder layers)
+    const hdr=block.querySelector('.lb-hdr');
+    hdr.addEventListener('dragstart',e=>{ dragSrcLayer=layer.id; dragSrcNode=null; block.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    hdr.addEventListener('dragend',()=>{ block.classList.remove('dragging'); body.querySelectorAll('.layer-block').forEach(b=>b.classList.remove('drag-over')); });
+    block.addEventListener('dragover',e=>{ if(!dragSrcLayer||dragSrcNode) return; e.preventDefault(); block.classList.add('drag-over'); });
+    block.addEventListener('dragleave',()=>block.classList.remove('drag-over'));
+    block.addEventListener('drop',e=>{ e.preventDefault(); block.classList.remove('drag-over'); if(!dragSrcLayer||dragSrcNode||dragSrcLayer===layer.id) return; const fromIdx=layers.findIndex(x=>x.id===dragSrcLayer); const toIdx=layers.findIndex(x=>x.id===layer.id); const [moved]=layers.splice(fromIdx,1); layers.splice(toIdx,0,moved); dragSrcLayer=null; _commitAndRedraw(); });
+
+    // wire vis toggle
+    block.querySelector('.lb-vis').addEventListener('click',e=>{
+      const lid=e.target.dataset.lid; const l=getLayer(lid); if(!l) return;
+      l.hidden=!l.hidden; _commitAndRedraw();
+    });
+    // wire delete
+    const delBtn=block.querySelector('.lb-del');
+    if(delBtn) delBtn.addEventListener('click',e=>{ const lid=e.target.dataset.lid; if(!confirm('确认删除此层？')) return; layers=layers.filter(x=>x.id!==lid); _commitAndRedraw(); });
+
+    // wire name edit
+    const nameEl=block.querySelector('.lb-name');
+    nameEl.addEventListener('blur',()=>{ const l=getLayer(layer.id); if(l){l.name=nameEl.textContent.trim()||l.name;} _commitAndRedraw(); });
+    nameEl.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();nameEl.blur();} });
+
+    // render nodes
+    const nodesEl=block.querySelector(`#lbnodes-${layer.id}`);
+    nodeKeys.forEach(label=>{
+      const cfg=getNodeCfg(layer.id,label);
+      const hidden=!!cfg.hidden;
+      const alias=cfg.alias||'';
+      const row=document.createElement('div');
+      row.className='node-row'+(hidden?' hidden-node':'');
+      row.draggable=true;
+      row.dataset.layerId=layer.id;
+      row.dataset.label=label;
+      row.innerHTML=`
+        <span class="nr-drag">⠿</span>
+        <span class="nr-label" title="${label}">${alias||label}</span>
+        <input class="nr-alias ${alias?'open':''}" placeholder="别名/合并" value="${alias}" data-lid="${layer.id}" data-label="${label}">
+        <span class="nr-cnt">${nodeMap[label]}</span>
+        <span class="nr-edit" title="编辑别名">✎</span>
+        <span class="nr-vis" title="显示/隐藏">${hidden?'☐':'☑'}</span>
+      `;
+      nodesEl.appendChild(row);
+
+      // edit button toggles alias input
+      row.querySelector('.nr-edit').addEventListener('click',()=>{
+        const inp=row.querySelector('.nr-alias');
+        inp.classList.toggle('open');
+        if(inp.classList.contains('open')) inp.focus();
+      });
+      // alias input commit
+      const aliasInp=row.querySelector('.nr-alias');
+      aliasInp.addEventListener('blur',()=>{
+        const v=aliasInp.value.trim();
+        setNodeCfg(layer.id,label,{alias:v||undefined});
+        row.querySelector('.nr-label').textContent=v||label;
+        _commitAndRedraw();
+      });
+      aliasInp.addEventListener('keydown',e=>{ if(e.key==='Enter') aliasInp.blur(); });
+
+      // vis toggle
+      row.querySelector('.nr-vis').addEventListener('click',()=>{
+        const cfg=getNodeCfg(layer.id,label);
+        setNodeCfg(layer.id,label,{hidden:!cfg.hidden});
+        _commitAndRedraw();
+      });
+
+      // drag node between layers
+      row.addEventListener('dragstart',e=>{ dragSrcNode={layerId:layer.id,label}; dragSrcLayer=null; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.stopPropagation(); });
+      row.addEventListener('dragend',()=>{ row.classList.remove('dragging'); document.querySelectorAll('.node-row').forEach(r=>r.classList.remove('drag-over-top','drag-over-bot')); });
+      row.addEventListener('dragover',e=>{ if(!dragSrcNode) return; e.preventDefault(); e.stopPropagation(); const half=row.offsetHeight/2; if(e.offsetY<half){row.classList.add('drag-over-top');row.classList.remove('drag-over-bot');}else{row.classList.add('drag-over-bot');row.classList.remove('drag-over-top');} });
+      row.addEventListener('dragleave',()=>row.classList.remove('drag-over-top','drag-over-bot'));
+      row.addEventListener('drop',e=>{ e.preventDefault(); e.stopPropagation(); if(!dragSrcNode||dragSrcNode.label===label) return; row.classList.remove('drag-over-top','drag-over-bot');
+        // move node: set alias in target layer, hide in source layer
+        if(dragSrcNode.layerId!==layer.id){
+          setNodeCfg(dragSrcNode.layerId,dragSrcNode.label,{hidden:true});
+          setNodeCfg(layer.id,label,{alias:dragSrcNode.label});
+        }
+        dragSrcNode=null; _commitAndRedraw();
+      });
+    });
+
+    // drop onto empty node area
+    nodesEl.addEventListener('dragover',e=>{ if(!dragSrcNode) return; e.preventDefault(); });
+    nodesEl.addEventListener('drop',e=>{ e.preventDefault(); if(!dragSrcNode||dragSrcNode.layerId===layer.id) return; setNodeCfg(dragSrcNode.layerId,dragSrcNode.label,{hidden:true}); dragSrcNode=null; _commitAndRedraw(); });
+  });
+}
+
+function _commitAndRedraw(){
+  getCurTab().layers=layers;
+  saveState(); renderSidebar(); renderLegend(); if(people.length) draw();
+}
+
+function addCustomLayer(){
+  const inp=document.getElementById('new-layer-input');
+  const name=inp.value.trim(); if(!name) return;
+  const id='custom_'+Date.now();
+  layers.push({id,name,color:'#888888',hidden:false,nodes:{},field:null});
+  inp.value=''; _commitAndRedraw();
+}
+
+function getPersonFieldVals(p,layerId){
+  if(layerId==='uschool') return p.uSchool?[p.uSchool]:[];
+  if(layerId==='mschool') return p.mSchool?[p.mSchool]:[];
+  if(layerId==='dschool') return p.dSchool?[p.dSchool]:[];
+  if(layerId==='advisor') return p.advisors.map(a=>a.name+(a.school?' @ '+a.school:''));
+  if(layerId==='intern')  return p.interns;
+  if(layerId==='prevjob') return p.prevjobs;
+  if(layerId==='job')     return p.jobs;
+  return [];
+}
+
+// ════════════════════════════════════════
+// LEGEND
+// ════════════════════════════════════════
+function renderLegend(){
+  const bar=document.getElementById('legbar'); bar.innerHTML='';
+  layers.filter(l=>!l.hidden).forEach(l=>{
+    const isOff=dimSet.has(l.id);
+    const div=document.createElement('div');
+    div.className='leg'+(isOff?' off':''); div.id='lg-'+l.id; div.onclick=()=>togDim(l.id);
+    div.innerHTML=`<div class="ldot" style="background:${l.color}"></div><span>${l.name}</span><span class="lcnt" id="lc-${l.id}">—</span>`;
+    bar.appendChild(div);
+  });
+  const hint=document.createElement('div'); hint.className='leg-hint'; hint.textContent='节点宽度=人数 · 点击隐藏层 · 点击节点查看详情'; bar.appendChild(hint);
+}
+
+// ════════════════════════════════════════
+// PARSE / BUILD PEOPLE
+// ════════════════════════════════════════
+function parseCSV(txt){
+  const lines=txt.trim().split('\n').filter(l=>l.trim()); if(lines.length<2) return null;
+  const hdrs=lines[0].split(',').map(h=>h.trim());
+  return lines.slice(1).map(line=>{ const vals=[]; let cur='',inQ=false; for(let i=0;i<line.length;i++){ if(line[i]==='"'){inQ=!inQ;}else if(line[i]===','&&!inQ){vals.push(cur);cur='';}else cur+=line[i]; } vals.push(cur); const o={}; hdrs.forEach((h,i)=>o[h]=(vals[i]||'').trim()); return o; }).filter(r=>r['姓名']);
+}
+
+function buildPeople(rows){
+  return rows.map(r=>{
+    let uSchool='',mSchool='',dSchool='';
+    if('博士学校' in r||'硕士学校' in r||'本科学校' in r){ uSchool=(r['本科学校']||'').trim(); mSchool=(r['硕士学校']||'').trim(); dSchool=(r['博士学校']||'').trim(); }
+    else { const s=(r['学校']||'').trim(),deg=(r['最高学历']||'博士').trim(); if(deg==='博士')dSchool=s; else if(deg==='硕士')mSchool=s; else uSchool=s; }
+    const topSchool=dSchool||mSchool||uSchool;
+    let degree; if(dSchool)degree='博士';else if(mSchool)degree='硕士';else if(uSchool)degree='本科';else degree=r['最高学历']||'';
+    const advisors=splitV(r['导师']).map(a=>{ if(a.includes('@')){const[n,s]=a.split('@');return{name:n.trim(),school:s.trim()};} return{name:a,school:topSchool}; });
+    return{name:r['姓名'],uSchool,mSchool,dSchool,topSchool,degree,advisors,interns:splitV(r['实习']),prevjobs:splitV(r['前任正职']),jobs:splitV(r['正职']),direction:r['方向']||'',note:r['备注']||''};
+  });
+}
+function splitV(s){ return s?s.split('/').map(v=>v.trim()).filter(Boolean):[]; }
+
+// ════════════════════════════════════════
+// BUILD GRAPH
+// ════════════════════════════════════════
+const NODE_W=16, NODE_PAD=9;
+
+function buildGraph(ppl){
+  const nodes={},links={};
+  let nid=0;
+  const activeLayers=layers.filter(l=>!l.hidden);
+
+  function nd(layerId,origLabel){
+    if(isNodeHidden(layerId,origLabel)) return null;
+    const displayLbl=nodeDisplayLabel(layerId,origLabel);
+    const k=layerId+':'+displayLbl;
+    if(!nodes[k]) nodes[k]={id:nid++,key:k,layer:layerId,label:displayLbl,people:[]};
+    return nodes[k];
+  }
+  function lk(s,t){ if(!s||!t) return null; const k=s.id+'>'+t.id; if(!links[k]) links[k]={id:k,source:s,target:t,people:[]}; return links[k]; }
+
+  ppl.forEach(p=>{
+    const groups={}; // layerId → [node]
+    activeLayers.forEach(l=>{ groups[l.id]=[]; });
+
+    activeLayers.forEach(l=>{
+      const vals=getPersonFieldVals(p,l.id);
+      vals.forEach(v=>{ const n=nd(l.id,v); if(n&&!groups[l.id].includes(n)){n.people.push(p);groups[l.id].push(n);} });
+    });
+
+    // link consecutive active layers
+    for(let i=0;i<activeLayers.length-1;i++){
+      const la=activeLayers[i], lb=activeLayers[i+1];
+      const ga=groups[la.id], gb=groups[lb.id];
+      if(!ga.length||!gb.length) continue;
+      // find nearest upstream that has nodes for person
+      let srcGroup=ga;
+      if(!srcGroup.length){
+        for(let j=i-1;j>=0;j--){ if(groups[activeLayers[j].id].length){srcGroup=groups[activeLayers[j].id];break;} }
+      }
+      srcGroup.forEach(s=>gb.forEach(t=>{ const l=lk(s,t); if(l&&!l.people.includes(p)) l.people.push(p); }));
+    }
+  });
+  return{nodes:Object.values(nodes),links:Object.values(links)};
+}
+
+// ════════════════════════════════════════
+// DRAW
+// ════════════════════════════════════════
+function draw(){
+  const wrap=document.getElementById('sw');
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const PAD={t:50,b:24,l:32,r:32};
+  const iw=W-PAD.l-PAD.r,ih=H-PAD.t-PAD.b;
+  const{nodes,links}=buildGraph(people);
+  const activeLayers=layers.filter(l=>!l.hidden&&nodes.some(n=>n.layer===l.id));
+  const nCols=activeLayers.length;
+  if(!nCols){ d3.select('#sv').selectAll('*').remove(); return; }
+  const colSpacing=nCols>1?iw/(nCols-1):0;
+  const colX={};
+  activeLayers.forEach((l,i)=>{ colX[l.id]=PAD.l+i*colSpacing; });
+  // update legend counts
+  layers.forEach(l=>{ const el=document.getElementById('lc-'+l.id); if(el) el.textContent=nodes.filter(n=>n.layer===l.id).length||'—'; });
+  activeLayers.forEach(l=>{
+    const group=nodes.filter(n=>n.layer===l.id).sort((a,b)=>b.people.length-a.people.length);
+    const total=group.reduce((s,n)=>s+n.people.length,0);
+    const padTotal=NODE_PAD*(group.length-1);
+    let y=PAD.t;
+    group.forEach(n=>{ n.h=Math.max(10,(n.people.length/(total||1))*(ih-padTotal)); n.x=colX[l.id]; n.y=y; y+=n.h+NODE_PAD; });
+  });
+  const srcOff={},tgtOff={};
+  nodes.forEach(n=>{srcOff[n.id]=0;tgtOff[n.id]=0;});
+  links.forEach(lk=>{
+    const s=lk.source,t=lk.target;
+    const ts=links.filter(x=>x.source.id===s.id).reduce((a,x)=>a+x.people.length,0);
+    const tt=links.filter(x=>x.target.id===t.id).reduce((a,x)=>a+x.people.length,0);
+    lk.sw=(lk.people.length/(ts||1))*s.h; lk.tw=(lk.people.length/(tt||1))*t.h;
+    lk.sy=s.y+srcOff[s.id]+lk.sw/2; lk.ty=t.y+tgtOff[t.id]+lk.tw/2;
+    srcOff[s.id]+=lk.sw; tgtOff[t.id]+=lk.tw;
+  });
+  const svgEl=document.getElementById('sv');
+  d3.select(svgEl).selectAll('*').remove();
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+  const zg=svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.3,4]).on('zoom',e=>zg.attr('transform',e.transform)));
+  activeLayers.forEach(l=>{ zg.append('text').attr('class','col-hdr').attr('x',colX[l.id]+NODE_W/2).attr('y',PAD.t-14).attr('text-anchor','middle').text(l.name); });
+  zg.append('g').selectAll('path').data(links).join('path')
+    .attr('class',d=>`slink ${dimSet.has(d.source.layer)||dimSet.has(d.target.layer)?'dim':''}`)
+    .attr('d',d=>{ const x0=d.source.x+NODE_W,x1=d.target.x,mx=(x0+x1)/2; return `M${x0},${d.sy} C${mx},${d.sy} ${mx},${d.ty} ${x1},${d.ty}`; })
+    .attr('stroke',d=>layerColor(d.source.layer)).attr('stroke-width',d=>Math.max(1.5,(d.sw+d.tw)/2))
+    .on('click',(e,d)=>{e.stopPropagation();showLinkDetail(d);})
+    .on('mouseover',function(e,d){d3.select(this).classed('hi',true);tt(e,`${d.people.length}人: ${d.source.label} → ${d.target.label}`);})
+    .on('mousemove',mvtt).on('mouseout',function(){d3.select(this).classed('hi',false);htt();});
+  const ng=zg.append('g').selectAll('g').data(nodes).join('g')
+    .attr('class',d=>`nd ${dimSet.has(d.layer)?'dim':''}`)
+    .on('click',(e,d)=>{e.stopPropagation();showNodeDetail(d);})
+    .on('mouseover',(e,d)=>tt(e,`${d.label}: ${d.people.length}人`))
+    .on('mousemove',mvtt).on('mouseout',htt);
+  ng.append('rect').attr('x',d=>d.x).attr('y',d=>d.y).attr('width',NODE_W).attr('height',d=>d.h).attr('fill',d=>layerColor(d.layer)).attr('rx',3);
+  ng.append('text').attr('class','nct').attr('x',d=>d.x+NODE_W/2).attr('y',d=>d.y+d.h/2).attr('text-anchor','middle').attr('dominant-baseline','middle').text(d=>d.h>=20?d.people.length:'');
+  ng.append('text').attr('class','nlb')
+    .attr('x',d=>d.x+(activeLayers[0]&&d.layer===activeLayers[0].id?-7:NODE_W+7))
+    .attr('y',d=>d.y+d.h/2).attr('text-anchor',d=>activeLayers[0]&&d.layer===activeLayers[0].id?'end':'start')
+    .attr('dominant-baseline','middle').text(d=>d.label.length>18?d.label.slice(0,17)+'…':d.label);
+  svg.on('click',clearDetail);
+}
+
+// ════════════════════════════════════════
+// DETAIL PANEL
+// ════════════════════════════════════════
+function dedup(arr){const seen=new Set();return arr.filter(p=>{if(seen.has(p.name))return false;seen.add(p.name);return true;});}
+function showNodeDetail(node){
+  document.getElementById('detail').classList.remove('empty');
+  document.getElementById('d-type').textContent=layerName(node.layer)+' 节点';
+  document.getElementById('d-name').textContent=node.label;
+  const ppl=dedup(node.people);
+  document.getElementById('d-sub').textContent=`${ppl.length} 位人才`;
+  const dirs={};ppl.forEach(p=>{const d=p.direction||'未标注';dirs[d]=(dirs[d]||0)+1;});
+  document.getElementById('d-body').innerHTML=`<div class="sec-title">研究方向</div>${Object.entries(dirs).sort((a,b)=>b[1]-a[1]).map(([d,c])=>`<div class="srow"><span class="srow-l">${d}</span><span class="srow-v">${c}人</span></div>`).join('')}<div class="sec-title">名单（${ppl.length}人）</div>${ppl.map(pcard).join('')}`;
+}
+function showLinkDetail(lk){
+  document.getElementById('detail').classList.remove('empty');
+  document.getElementById('d-type').textContent=`${layerName(lk.source.layer)} → ${layerName(lk.target.layer)}`;
+  document.getElementById('d-name').textContent=`${lk.source.label} → ${lk.target.label}`;
+  const ppl=dedup(lk.people);
+  document.getElementById('d-sub').textContent=`${ppl.length} 位人才`;
+  document.getElementById('d-body').innerHTML=`<div class="sec-title">名单（${ppl.length}人）</div>${ppl.map(pcard).join('')}`;
+}
+function pcard(p){
+  const mk=(bg,c,t)=>`<span class="tag" style="background:${bg};color:${c}">${t}</span>`;
+  const edu=[p.uSchool?mk('rgba(167,139,250,.15)','#a78bfa','本科 '+p.uSchool):'',p.mSchool?mk('rgba(129,140,248,.15)','#818cf8','硕士 '+p.mSchool):'',p.dSchool?mk('rgba(79,142,247,.15)','#4f8ef7','博士 '+p.dSchool):''].filter(Boolean).join('<span style="color:var(--mu);margin:0 2px">→</span>')||'<span class="unknown-badge">教育未知</span>';
+  const adv=p.advisors.length?p.advisors.map(a=>mk('rgba(229,96,106,.15)','#e5606a',a.name+(a.school?'@'+a.school:''))).join(''):'<span class="unknown-badge">导师未知</span>';
+  const int=p.interns.length?p.interns.map(i=>mk('rgba(59,184,196,.15)','#3bb8c4',i)).join(''):'';
+  const pj=p.prevjobs.length?p.prevjobs.map(j=>mk('rgba(240,165,0,.15)','#f0a500',j)).join(''):'';
+  const jb=p.jobs.length?p.jobs.map(j=>mk('rgba(126,200,122,.15)','#7ec87a',j)).join(''):'<span class="unknown-badge">正职未知</span>';
+  const work=[pj,pj&&jb?'<span style="color:var(--mu);margin:0 2px">→</span>':'',jb].join('');
+  return `<div class="pcard"><div class="pcn">${p.name}${p.direction?` <span style="color:var(--mu);font-size:9px">·${p.direction}</span>`:''}${p.note?` <span style="color:var(--mu);font-size:9px;font-style:italic">·${p.note}</span>`:''}</div><div class="pcm">${edu}<br>${adv}<br>${int?int+'<br>':''}${work}</div></div>`;
+}
+function clearDetail(){
+  document.getElementById('detail').classList.add('empty');
+  document.getElementById('d-type').textContent='选择节点';
+  document.getElementById('d-name').textContent='点击任意节点';
+  document.getElementById('d-sub').textContent='查看穿透详情';
+  document.getElementById('d-body').innerHTML='<div style="color:var(--mu);font-size:10.5px;margin-top:20px;text-align:center;line-height:2.2;opacity:.6">点击桑基图中<br>任意节点或连接线<br>查看人才详情</div>';
+}
+
+// ════════════════════════════════════════
+// DIM + TOOLTIP
+// ════════════════════════════════════════
+function togDim(layerId){if(dimSet.has(layerId))dimSet.delete(layerId);else dimSet.add(layerId);const el=document.getElementById('lg-'+layerId);if(el)el.classList.toggle('off',dimSet.has(layerId));draw();}
+let tte;
+function tt(e,s){if(!tte){tte=document.createElement('div');tte.style.cssText='position:fixed;background:#14141f;border:1px solid #1f1f30;border-radius:5px;padding:5px 10px;font-size:10px;font-family:IBM Plex Mono,monospace;color:#dde0f5;pointer-events:none;z-index:800';document.body.appendChild(tte);}tte.textContent=s;tte.style.display='block';tte.style.left=(e.clientX+13)+'px';tte.style.top=(e.clientY-10)+'px';}
+function mvtt(e){if(tte){tte.style.left=(e.clientX+13)+'px';tte.style.top=(e.clientY-10)+'px';}}
+function htt(){if(tte)tte.style.display='none';}
+
+// ════════════════════════════════════════
+// IMPORT
+// ════════════════════════════════════════
+function showModal(){document.getElementById('ov').classList.remove('hidden');}
+function hideModal(){document.getElementById('ov').classList.add('hidden');document.getElementById('m-err').textContent='';}
+function doImport(){const txt=document.getElementById('csv-ta').value.trim();if(!txt){document.getElementById('m-err').textContent='请先粘贴数据';return;}const rows=parseCSV(txt);if(!rows){document.getElementById('m-err').textContent='解析失败';return;}loadPeopleToTab(buildPeople(rows));hideModal();}
+function loadSample(){loadPeopleToTab(buildPeople(parseCSV(SAMPLE)));}
+function clearStats(){['s-p','s-us','s-ms','s-ds','s-a','s-i','s-pj','s-j'].forEach(id=>document.getElementById(id).textContent='0');}
+function updateStats(){
+  document.getElementById('s-p').textContent=people.length;
+  document.getElementById('s-us').textContent=new Set(people.map(p=>p.uSchool).filter(Boolean)).size;
+  document.getElementById('s-ms').textContent=new Set(people.map(p=>p.mSchool).filter(Boolean)).size;
+  document.getElementById('s-ds').textContent=new Set(people.map(p=>p.dSchool).filter(Boolean)).size;
+  document.getElementById('s-a').textContent=new Set(people.flatMap(p=>p.advisors.map(a=>a.name))).size;
+  document.getElementById('s-i').textContent=new Set(people.flatMap(p=>p.interns)).size;
+  document.getElementById('s-pj').textContent=new Set(people.flatMap(p=>p.prevjobs)).size;
+  document.getElementById('s-j').textContent=new Set(people.flatMap(p=>p.jobs)).size;
+}
+function loadPeopleToTab(ppl){
+  const tab=getCurTab(); tab.people=ppl; people=ppl; dimSet=tab.dimSet; layers=tab.layers;
+  saveState(); renderTabs(); renderLegend(); renderSidebar();
+  document.getElementById('ep').style.display='none'; updateStats(); draw();
+}
+
+// ════════════════════════════════════════
+// AI IMPORT
+// ════════════════════════════════════════
+let aiResultCSV='';
+function showAIModal(){document.getElementById('ai-ov').classList.remove('hidden');goAIStep(1);document.getElementById('ai-raw-ta').value='';document.getElementById('ai-err').textContent='';aiResultCSV='';}
+function hideAIModal(){document.getElementById('ai-ov').classList.add('hidden');}
+function goAIStep(n){
+  [1,2,3].forEach(i=>{document.getElementById('ai-s'+i).className='ai-step'+(i<n?' done':i===n?' active':'');document.getElementById('ai-p'+i).className='ai-panel'+(i===n?'':' hidden');});
+  document.getElementById('ai-mf-btns').innerHTML=n===3?'<button class="btn" onclick="hideAIModal()">取消</button><button class="btn p" onclick="doAIImport()">导入到当前 Tab ✓</button>':'<button class="btn" onclick="hideAIModal()">取消</button>';
+  document.getElementById('ai-err').textContent='';
+}
+async function aiStep2(){
+  const raw=document.getElementById('ai-raw-ta').value.trim();
+  if(!raw){document.getElementById('ai-err').textContent='请先粘贴原始数据';return;}
+  goAIStep(2);
+  const prog=document.getElementById('ai-prog'),logT=document.getElementById('ai-log-t');
+  const steps=[[15,'正在识别列结构…'],[35,'提取学历与导师…'],[55,'区分实习与正职…'],[75,'统一机构名称…'],[90,'生成标准格式…']];
+  let si=0;
+  const ticker=setInterval(()=>{if(si<steps.length){prog.style.width=steps[si][0]+'%';logT.textContent=steps[si][1];si++;}},600);
+  try{
+    const resp=await fetch('/api/convert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rawText:raw})});
+    clearInterval(ticker);
+    if(!resp.ok){const err=await resp.json();throw new Error(err.error||'API 请求失败');}
+    const data=await resp.json();
+    prog.style.width='100%';logT.textContent='✓ 分析完成';document.getElementById('ai-spin').style.display='none';
+    aiResultCSV=data.csv;
+    setTimeout(()=>{goAIStep(3);renderAIResult(data.csv);},500);
+  }catch(err){
+    clearInterval(ticker);document.getElementById('ai-spin').style.display='none';
+    document.getElementById('ai-err').textContent='分析失败：'+err.message;goAIStep(1);
+  }
+}
+function renderAIResult(csv){const rows=parseCSV(csv);if(!rows)return;document.getElementById('ai-cnt').textContent=rows.length;const hdrs=['姓名','本科学校','硕士学校','博士学校','导师','实习','前任正职','正职','方向','备注'];document.getElementById('ai-result-thead').innerHTML=hdrs.map(h=>`<th>${h}</th>`).join('');document.getElementById('ai-result-tbody').innerHTML=rows.map(r=>`<tr>${hdrs.map(h=>`<td title="${r[h]||''}">${(r[h]||'').slice(0,20)}</td>`).join('')}</tr>`).join('');document.getElementById('ai-csv-edit-ta').value=csv;}
+function aiEditCSV(){const s=document.getElementById('ai-csv-edit-section');s.style.display=s.style.display!=='none'?'none':'block';}
+function doAIImport(){const editSec=document.getElementById('ai-csv-edit-section');if(editSec.style.display!=='none')aiResultCSV=document.getElementById('ai-csv-edit-ta').value.trim();if(!aiResultCSV){document.getElementById('ai-err').textContent='没有可导入的数据';return;}const rows=parseCSV(aiResultCSV);if(!rows){document.getElementById('ai-err').textContent='解析失败';return;}loadPeopleToTab(buildPeople(rows));hideAIModal();}
+
+// ════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════
+window.addEventListener('resize',()=>{if(people.length)draw();});
+(function boot(){
+  const restored=loadState();
+  if(!restored) sidebarOpen=true;
+  document.getElementById('layer-sidebar').classList.toggle('collapsed',!sidebarOpen);
+  document.getElementById('sidebar-toggle-btn').classList.toggle('active-btn',sidebarOpen);
+  renderTabs();
+  const tab=getCurTab();
+  people=tab.people; dimSet=tab.dimSet; layers=tab.layers||cloneLayers(); tab.layers=layers;
+  renderLegend(); renderSidebar();
+  if(people.length){document.getElementById('ep').style.display='none';updateStats();draw();}
+})();
+</script>
+</body>
+</html>
